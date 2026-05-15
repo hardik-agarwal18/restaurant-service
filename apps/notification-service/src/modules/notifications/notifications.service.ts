@@ -1,5 +1,9 @@
 import type { Queue } from "bullmq";
-import type { OrderCreatedPayload } from "@rm/events";
+import type { EventEnvelope } from "@rm/events";
+import { z } from "zod";
+import { OrderCreatedPayloadSchema } from "@rm/events";
+
+type OrderCreatedPayload = z.infer<typeof OrderCreatedPayloadSchema>;
 
 export class NotificationsService {
   constructor(
@@ -9,7 +13,7 @@ export class NotificationsService {
     }
   ) {}
 
-  async onOrderCreated(evt: OrderCreatedPayload): Promise<void> {
+  async onOrderCreated(evt: EventEnvelope<OrderCreatedPayload>): Promise<void> {
     await this.deps.emailQueue.add("order-created", {
       tenantId: evt.tenantId,
       orderId: evt.payload.orderId,

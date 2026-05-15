@@ -1,5 +1,9 @@
 import type { Server, Socket } from "socket.io";
-import type { OrderCreatedPayload } from "@rm/events";
+import type { EventEnvelope } from "@rm/events";
+import { OrderCreatedPayloadSchema } from "@rm/events";
+import { z } from "zod";
+
+type OrderCreatedPayload = z.infer<typeof OrderCreatedPayloadSchema>;
 
 export class RealtimeService {
   constructor(private readonly io: Server) {}
@@ -16,7 +20,7 @@ export class RealtimeService {
     });
   }
 
-  onOrderCreated(evt: OrderCreatedPayload): void {
+  onOrderCreated(evt: EventEnvelope<OrderCreatedPayload>): void {
     this.io.to(`tenant:${evt.tenantId}`).emit("order:created", evt.payload);
   }
 }
