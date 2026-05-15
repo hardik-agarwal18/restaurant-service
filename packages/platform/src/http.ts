@@ -56,8 +56,18 @@ export function errorHandler(logger: Logger) {
       | Record<string, unknown>
       | undefined;
 
-    const status = typeof e?.status === "number" ? e.status : 500;
-    const code = typeof e?.code === "string" ? e.code : status === 500 ? "INTERNAL" : "ERROR";
+    const isZodError =
+      typeof e?.name === "string" && e.name === "ZodError" && Array.isArray(e.issues);
+
+    const status = typeof e?.status === "number" ? e.status : isZodError ? 400 : 500;
+    const code =
+      typeof e?.code === "string"
+        ? e.code
+        : isZodError
+          ? "BAD_REQUEST"
+          : status === 500
+            ? "INTERNAL"
+            : "ERROR";
     const message =
       typeof e?.message === "string"
         ? e.message

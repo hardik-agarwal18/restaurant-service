@@ -10,6 +10,7 @@ export function buildProxyRouter(env: Env): ExpressRouter {
     createProxyMiddleware({
       target: env.AUTH_SERVICE_URL,
       changeOrigin: true,
+      pathRewrite: (path) => `/v1/auth${path}`,
     })
   );
 
@@ -18,6 +19,7 @@ export function buildProxyRouter(env: Env): ExpressRouter {
     createProxyMiddleware({
       target: env.ORDER_SERVICE_URL,
       changeOrigin: true,
+      pathRewrite: (path) => `/v1/orders${path}`,
     })
   );
 
@@ -26,6 +28,7 @@ export function buildProxyRouter(env: Env): ExpressRouter {
     createProxyMiddleware({
       target: env.INVENTORY_SERVICE_URL,
       changeOrigin: true,
+      pathRewrite: (path) => `/v1/inventory${path}`,
     })
   );
 
@@ -34,6 +37,7 @@ export function buildProxyRouter(env: Env): ExpressRouter {
     createProxyMiddleware({
       target: env.POS_SERVICE_URL,
       changeOrigin: true,
+      pathRewrite: (path) => `/v1/pos${path}`,
     })
   );
 
