@@ -1,0 +1,42 @@
+{
+  "name": "restaurant-management-saas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Production-grade Restaurant Management SaaS Platform (microservices, event-driven)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "node scripts/build.mjs",
+    "lint": "eslint .",
+    "test": "jest",
+    "typecheck": "npm run build -w @rm/platform -w @rm/auth -w @rm/events -w @rm/db && npm run typecheck --workspaces --if-present",
+    "format": "prettier -w .",
+    "prisma:generate": "npm run prisma:generate -w @rm/db",
+    "prisma:migrate": "npm run prisma:migrate -w @rm/db",
+    "prisma:studio": "npm run prisma:studio -w @rm/db"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.27.0",
+    "@typescript-eslint/parser": "^8.27.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.9.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "@types/express": "4.17.25",
+    "@types/express-serve-static-core": "4.19.8"
+  }
+}

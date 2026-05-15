@@ -1,0 +1,299 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rm_password}
+      POSTGRES_DB: ${POSTGRES_DB:-rm}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/api-gateway
+    environment:
+      NODE_ENV: production
+      GATEWAY_PORT: 8080
+      TRUST_PROXY: "true"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      ORDER_SERVICE_URL: http://order-service:3002
+      INVENTORY_SERVICE_URL: http://inventory-service:3003
+      POS_SERVICE_URL: http://pos-service:3004
+      JWT_ISSUER: ${JWT_ISSUER:-rm-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rm-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      pos-service:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$GATEWAY_PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/auth-service
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rm:rm_password@postgres:5432/rm?schema=public}
+      COOKIE_SECURE: "false"
+      JWT_ISSUER: ${JWT_ISSUER:-rm-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rm-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  order-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/order-service
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rm:rm_password@postgres:5432/rm?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_ISSUER: ${JWT_ISSUER:-rm-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rm-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3002:3002"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/inventory-service
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rm:rm_password@postgres:5432/rm?schema=public}
+      JWT_ISSUER: ${JWT_ISSUER:-rm-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rm-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3003:3003"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  pos-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/pos-service
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://rm:rm_password@postgres:5432/rm?schema=public}
+      JWT_ISSUER: ${JWT_ISSUER:-rm-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rm-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3004:3004"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/notification-service
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      TRUST_PROXY: "true"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "3005:3005"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  realtime-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        WORKSPACE: apps/realtime-service
+    environment:
+      NODE_ENV: production
+      PORT: 3010
+      TRUST_PROXY: "true"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "3010:3010"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$PORT/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nginx:
+    image: nginx:1.27
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-gateway
+      - realtime-service
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    profiles: ["observability"]
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./infra/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.2.0
+    profiles: ["observability"]
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ./infra/monitoring/loki-config.yml:/etc/loki/config.yml:ro
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    profiles: ["observability"]
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./infra/monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  pgdata:

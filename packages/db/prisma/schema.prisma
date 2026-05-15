@@ -1,0 +1,443 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum BusinessType {
+    RESTAURANT
+    CAFE
+    CLOUD_KITCHEN
+    FRANCHISE
+}
+
+enum OrderType {
+    DINE_IN
+    TAKEAWAY
+    DELIVERY
+}
+
+enum OrderStatus {
+    CREATED
+    CONFIRMED
+    PREPARING
+    READY
+    PICKED_UP
+    DELIVERED
+    CANCELLED
+    REFUNDED
+}
+
+enum PaymentStatus {
+    PENDING
+    CAPTURED
+    FAILED
+    REFUNDED
+}
+
+enum PaymentMethod {
+    CASH
+    CARD
+    UPI
+    WALLET
+    ONLINE
+}
+
+enum InventoryUnit {
+    G
+    KG
+    ML
+    L
+    PCS
+}
+
+model Tenant {
+    id           String       @id @default(cuid())
+    name         String
+    businessType BusinessType
+    createdAt    DateTime     @default(now())
+    updatedAt    DateTime     @updatedAt
+
+    restaurants Restaurant[]
+    users       User[]
+    roles       Role[]
+}
+
+model Restaurant {
+    id        String   @id @default(cuid())
+    tenantId  String
+    name      String
+    gstin     String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    tenant   Tenant   @relation(fields: [tenantId], references: [id])
+    branches Branch[]
+
+    @@index([tenantId])
+}
+
+model Branch {
+    id           String   @id @default(cuid())
+    tenantId     String
+    restaurantId String
+    name         String
+    addressLine1 String
+    city         String
+    state        String
+    postalCode   String
+    phone        String?
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    restaurant     Restaurant      @relation(fields: [restaurantId], references: [id])
+    tables         DiningTable[]
+    orders         Order[]
+    inventoryItems InventoryItem[]
+    reservations   Reservation[]
+
+    @@index([tenantId])
+    @@index([restaurantId])
+}
+
+model User {
+    id           String   @id @default(cuid())
+    tenantId     String
+    email        String
+    name         String
+    passwordHash String
+    isActive     Boolean  @default(true)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    tenant    Tenant        @relation(fields: [tenantId], references: [id])
+    sessions  UserSession[]
+    userRoles UserRole[]
+    auditLogs AuditLog[]
+
+    @@unique([tenantId, email])
+    @@index([tenantId])
+}
+
+model Role {
+    id        String   @id @default(cuid())
+    tenantId  String
+    name      String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    tenant          Tenant           @relation(fields: [tenantId], references: [id])
+    rolePermissions RolePermission[]
+    userRoles       UserRole[]
+
+    @@unique([tenantId, name])
+}
+
+model Permission {
+    id        String   @id @default(cuid())
+    key       String   @unique
+    createdAt DateTime @default(now())
+
+    rolePermissions RolePermission[]
+}
+
+model RolePermission {
+    roleId       String
+    permissionId String
+
+    role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+    permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+    @@id([roleId, permissionId])
+}
+
+model UserRole {
+    userId String
+    roleId String
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+    @@id([userId, roleId])
+}
+
+model UserSession {
+    id               String    @id @default(cuid())
+    tenantId         String
+    userId           String
+    refreshTokenHash String
+    rotation         Int       @default(0)
+    userAgent        String?
+    ip               String?
+    deviceId         String?
+    createdAt        DateTime  @default(now())
+    lastUsedAt       DateTime  @default(now())
+    revokedAt        DateTime?
+    replacedById     String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+    @@index([userId])
+}
+
+model Customer {
+    id        String   @id @default(cuid())
+    tenantId  String
+    phone     String
+    name      String?
+    email     String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    loyalty      LoyaltyAccount?
+    reservations Reservation[]
+
+    @@unique([tenantId, phone])
+    @@index([tenantId])
+}
+
+model LoyaltyAccount {
+    id         String   @id @default(cuid())
+    tenantId   String
+    customerId String   @unique
+    points     Int      @default(0)
+    tier       String   @default("STANDARD")
+    updatedAt  DateTime @updatedAt
+
+    customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+}
+
+model DiningTable {
+    id       String  @id @default(cuid())
+    tenantId String
+    branchId String
+    code     String
+    capacity Int
+    isActive Boolean @default(true)
+
+    branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+    @@unique([tenantId, branchId, code])
+    @@index([tenantId])
+}
+
+model Reservation {
+    id          String   @id @default(cuid())
+    tenantId    String
+    branchId    String
+    customerId  String
+    tableId     String?
+    scheduledAt DateTime
+    partySize   Int
+    status      String   @default("BOOKED")
+    createdAt   DateTime @default(now())
+
+    branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+    @@index([branchId])
+}
+
+model MenuItem {
+    id           String  @id @default(cuid())
+    tenantId     String
+    restaurantId String
+    name         String
+    price        Decimal @db.Decimal(10, 2)
+    taxPercent   Decimal @db.Decimal(5, 2)
+    isActive     Boolean @default(true)
+
+    @@index([tenantId])
+    @@index([restaurantId])
+}
+
+model Order {
+    id            String      @id @default(cuid())
+    tenantId      String
+    branchId      String
+    customerId    String?
+    type          OrderType
+    status        OrderStatus @default(CREATED)
+    subtotal      Decimal     @db.Decimal(12, 2)
+    taxTotal      Decimal     @db.Decimal(12, 2)
+    discountTotal Decimal     @default(0) @db.Decimal(12, 2)
+    grandTotal    Decimal     @db.Decimal(12, 2)
+    createdAt     DateTime    @default(now())
+    updatedAt     DateTime    @updatedAt
+
+    branch   Branch      @relation(fields: [branchId], references: [id])
+    items    OrderItem[]
+    payments Payment[]
+
+    @@index([tenantId])
+    @@index([branchId])
+    @@index([status])
+}
+
+model OrderItem {
+    id           String  @id @default(cuid())
+    tenantId     String
+    orderId      String
+    menuItemId   String
+    nameSnapshot String
+    quantity     Int
+    unitPrice    Decimal @db.Decimal(12, 2)
+    taxPercent   Decimal @db.Decimal(5, 2)
+    total        Decimal @db.Decimal(12, 2)
+
+    order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+    @@index([orderId])
+}
+
+model Payment {
+    id          String        @id @default(cuid())
+    tenantId    String
+    orderId     String
+    method      PaymentMethod
+    status      PaymentStatus @default(PENDING)
+    amount      Decimal       @db.Decimal(12, 2)
+    provider    String?
+    providerRef String?
+    createdAt   DateTime      @default(now())
+
+    order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+    @@index([orderId])
+}
+
+model InventoryItem {
+    id           String        @id @default(cuid())
+    tenantId     String
+    branchId     String
+    name         String
+    unit         InventoryUnit
+    reorderLevel Decimal       @default(0) @db.Decimal(12, 3)
+    createdAt    DateTime      @default(now())
+
+    branch  Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+    batches StockBatch[]
+
+    @@unique([tenantId, branchId, name])
+    @@index([tenantId])
+}
+
+model StockBatch {
+    id         String    @id @default(cuid())
+    tenantId   String
+    itemId     String
+    quantity   Decimal   @db.Decimal(12, 3)
+    unitCost   Decimal   @db.Decimal(12, 3)
+    expiryDate DateTime?
+    createdAt  DateTime  @default(now())
+
+    item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+    @@index([tenantId])
+    @@index([itemId])
+}
+
+model Supplier {
+    id        String   @id @default(cuid())
+    tenantId  String
+    name      String
+    phone     String?
+    email     String?
+    createdAt DateTime @default(now())
+
+    @@index([tenantId])
+}
+
+model PurchaseOrder {
+    id         String   @id @default(cuid())
+    tenantId   String
+    branchId   String
+    supplierId String
+    status     String   @default("CREATED")
+    createdAt  DateTime @default(now())
+
+    @@index([tenantId])
+    @@index([branchId])
+}
+
+model Delivery {
+    id         String   @id @default(cuid())
+    tenantId   String
+    orderId    String   @unique
+    partner    String?
+    riderName  String?
+    riderPhone String?
+    status     String   @default("ASSIGNED")
+    otp        String?
+    createdAt  DateTime @default(now())
+
+    @@index([tenantId])
+}
+
+model Review {
+    id         String   @id @default(cuid())
+    tenantId   String
+    customerId String
+    rating     Int
+    comment    String?
+    source     String   @default("IN_APP")
+    createdAt  DateTime @default(now())
+
+    @@index([tenantId])
+}
+
+model AuditLog {
+    id        String   @id @default(cuid())
+    tenantId  String
+    userId    String?
+    action    String
+    entity    String
+    entityId  String?
+    ip        String?
+    userAgent String?
+    createdAt DateTime @default(now())
+
+    user User? @relation(fields: [userId], references: [id])
+
+    @@index([tenantId])
+    @@index([userId])
+    @@index([action])
+}
+
+model OutboxEvent {
+    id          String    @id @default(cuid())
+    tenantId    String
+    topic       String
+    payload     Json
+    createdAt   DateTime  @default(now())
+    publishedAt DateTime?
+
+    @@index([tenantId])
+    @@index([publishedAt])
+    @@index([topic])
+}
+
+model IdempotencyKey {
+    id           String   @id @default(cuid())
+    tenantId     String
+    key          String
+    method       String
+    path         String
+    requestHash  String
+    responseBody Json
+    statusCode   Int
+    createdAt    DateTime @default(now())
+    expiresAt    DateTime
+
+    @@unique([tenantId, key])
+    @@index([expiresAt])
+}
